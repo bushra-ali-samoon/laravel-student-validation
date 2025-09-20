@@ -16,14 +16,24 @@ class StudentController extends Controller
         return view('students.index', compact('students'));
     }
 
-    // Show create form
-    public function create()
-    {
-        return view('students.create');
-    }
+public function create()
+{
+    $students = Student::all();
+    return view('students.create', compact('students'));
+}
+public function fetch()
+{
+    $students = Student::all();
 
-    // Save new student and send verification email
-    public function store(Request $request)
+    // Return JSON for AJAX
+    return response()->json([
+        'success'  => true,
+        'students' => $students
+    ]);
+}
+
+
+public function storeAjax(Request $request)
 {
     $request->validate([
         'name'  => 'required',
@@ -34,21 +44,26 @@ class StudentController extends Controller
         'name'              => $request->name,
         'email'             => $request->email,
         'is_verified'       => 0,
-        'verification_token'=> Str::random(40),
+        'verification_token'=> \Str::random(40),
     ]);
 
-    //  Yahan link generate karna hai
-    $verificationLink = route('students.verify', $student->verification_token);
+    // Optional: send verification mail (wrapped in try/catch)
+    try {
+        $verificationLink = route('students.verify', ['token' => $student->verification_token]);
+        Mail::raw("Hi {$student->name}, click here to verify: $verificationLink", function ($message) use ($student) {
+            $message->to($student->email)
+                    ->subject('Verify your Student Account');
+        });
+    } catch (\Exception $e) {
+        \Log::error('Mail sending failed: '.$e->getMessage());
+    }
 
-    //  Email bhejna
-    Mail::raw("Hi {$student->name}, click here to verify: $verificationLink", function ($message) use ($student) {
-        $message->to($student->email)
-                ->subject('Verify your Student Account');
-    });
-
-    return redirect()->route('students.index')->with('success', 'Student added! Verification email sent.');
+    return response()->json([
+        'success' => true,
+        'message' => 'Student added! Verification email sent.',
+        'student' => $student
+    ]);
 }
-
 
     // Verify student
     public function verify($token)
