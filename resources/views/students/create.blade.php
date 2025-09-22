@@ -1,31 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Students</title>
+    <title>Add Student</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         .invalid-feedback { color: red; display: none; }
+        .is-invalid { border: 1px solid red; }
     </style>
 </head>
 <body>
     <h1>Add Student</h1>
 
     <!-- Response messages -->
-    <div id="response"></div>
+    <div id="responseMessage"></div>
 
     <!-- Student Form -->
-    <form id="studentForm">
+    <form id="ajaxStudentForm" autocomplete="off">
         @csrf
         <div>
-            <label>Name</label><br>
-            <input type="text" name="name" id="name" required>
+            <label>Full Name</label><br>
+            <input type="text" name="full_name" id="full_name" required>
             <div class="invalid-feedback"></div>
         </div>
 
         <div>
-            <label>Email</label><br>
-            <input type="email" name="email" id="email" required>
+            <label>Email Address</label><br>
+            <input type="email" name="email_address" id="email_address" required>
             <div class="invalid-feedback"></div>
         </div>
 
@@ -35,89 +36,77 @@
     <hr>
 
     <!-- Student List -->
-    <h2>Add Student</h2>
+    <h2>Student List</h2>
+    <ul id="ajaxStudentList"></ul>
 
-<form id="studentForm">
-    @csrf
-    <div>
-        <label>Name</label><br>
-        <input type="text" name="name" id="name" required>
-        <div class="invalid-feedback" style="color:red;display:none;"></div>
-    </div>
+    <script>
+    $(document).ready(function() {
 
-    <div>
-        <label>Email</label><br>
-        <input type="email" name="email" id="email" required>
-        <div class="invalid-feedback" style="color:red;display:none;"></div>
-    </div>
-
-    <button type="submit">Add Student</button>
-</form>
-
-<h2>Students List</h2>
-<ul id="studentList"></ul>
-
-<div id="response"></div>
-
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-$(document).ready(function() {
-
-    // Function to fetch students list via AJAX
-    function fetchStudents() {
-        $.ajax({
-            url: "{{ route('students.index.ajax') }}", // new route for fetching students
-            type: "GET",
-            success: function(response) {
-                $('#studentList').empty(); // clear current list
-                $.each(response.students, function(index, student) {
-                    $('#studentList').append('<li>' + student.name + ' (' + student.email + ')</li>');
-                });
-            },
-            error: function(xhr) {
-                console.log('Error fetching students:', xhr);
-            }
-        });
-    }
-
-    // Initially fetch students when page loads
-    fetchStudents();
-
-    // Handle student form submission
-    $('#studentForm').submit(function(e) {
-        e.preventDefault();
-
-        $('.invalid-feedback').hide().text('');
-        $('input').removeClass('is-invalid');
-
-        $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': $('input[name="_token"]').val() } });
-
-        $.ajax({
-            url: "{{ route('students.store.ajax') }}",
-            type: "POST",
-            data: $(this).serialize(),
-            success: function(response) {
-                $('#response').html('<p style="color:green;">'+response.message+'</p>');
-                $('#studentForm')[0].reset();
-                fetchStudents(); // Refresh the list after adding new student
-            },
-            error: function(xhr) {
-                if (xhr.status === 422) {
-                    let errors = xhr.responseJSON.errors;
-                    $.each(errors, function(field, msgs) {
-                        let $input = $('input[name="'+field+'"]');
-                        $input.addClass('is-invalid');
-                        $input.next('.invalid-feedback').text(msgs[0]).show();
+        // Function to fetch students list via AJAX
+        function fetchStudentList() {
+            $.ajax({
+                url: "{{ route('students.fetch') }}",
+                type: "GET",
+                success: function(response) {
+                    $('#ajaxStudentList').empty();
+                    $.each(response.students, function(index, student) {
+                        $('#ajaxStudentList').append('<li>' + student.name + ' (' + student.email + ')</li>');
                     });
-                } else {
-                    $('#response').html('<p style="color:red;">Server error: '+xhr.status+'</p>');
+                },
+                error: function(xhr) {
+                    console.log('Error fetching students:', xhr);
                 }
-            }
+            });
+        }
+
+        // Load students initially
+        fetchStudentList();
+
+        // Handle form submission
+        $('#ajaxStudentForm').submit(function(e) {
+            e.preventDefault(); // Important: prevent normal form submission
+
+            // Clear previous errors
+            $('.invalid-feedback').hide().text('');
+            $('input').removeClass('is-invalid');
+
+            $.ajax({
+                url: "{{ route('students.storeAjax') }}", // POST route
+                type: "POST",
+                data: {
+                    name: $('#full_name').val(),
+                    email: $('#email_address').val(),
+                },
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function(response) {
+                    $('#responseMessage').html('<p style="color:green;">'+response.message+'</p>');
+                    $('#ajaxStudentForm')[0].reset();
+                    fetchStudentList(); // Refresh list
+                },
+                error: function(xhr) {
+                    if (xhr.status === 422) {
+                        let errors = xhr.responseJSON.errors;
+                        $.each(errors, function(field, msgs) {
+                            if(field === 'name') {
+                                $('#full_name').addClass('is-invalid');
+                                $('#full_name').next('.invalid-feedback').text(msgs[0]).show();
+                            }
+                            if(field === 'email') {
+                                $('#email_address').addClass('is-invalid');
+                                $('#email_address').next('.invalid-feedback').text(msgs[0]).show();
+                            }
+                        });
+                    } else {
+                        $('#responseMessage').html('<p style="color:red;">Server error: '+xhr.status+'</p>');
+                    }
+                }
+            });
+
         });
+
     });
-
-});
-</script>
-
+    </script>
 </body>
 </html>

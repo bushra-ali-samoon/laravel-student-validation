@@ -9,63 +9,60 @@ use Illuminate\Support\Facades\Mail;
 
 class StudentController extends Controller
 {
-    // Show all students
     public function index()
     {
+        return view('students.index'); // no need to pass students
+    }
+
+    public function create()
+    {
+        return view('students.create'); // no need to pass students
+    }
+
+    public function fetch()
+    {
         $students = Student::all();
-        return view('students.index', compact('students'));
+
+        return response()->json([
+            'success'  => true,
+            'students' => $students
+        ]);
     }
 
-public function create()
-{
-    $students = Student::all();
-    return view('students.create', compact('students'));
-}
-public function fetch()
-{
-    $students = Student::all();
-
-    // Return JSON for AJAX
-    return response()->json([
-        'success'  => true,
-        'students' => $students
-    ]);
-}
-
-
-public function storeAjax(Request $request)
-{
-    $request->validate([
-        'name'  => 'required',
-        'email' => 'required|email|unique:students,email',
-    ]);
-
-    $student = Student::create([
-        'name'              => $request->name,
-        'email'             => $request->email,
-        'is_verified'       => 0,
-        'verification_token'=> \Str::random(40),
-    ]);
-
-    // Optional: send verification mail (wrapped in try/catch)
-    try {
-        $verificationLink = route('students.verify', ['token' => $student->verification_token]);
-        Mail::raw("Hi {$student->name}, click here to verify: $verificationLink", function ($message) use ($student) {
-            $message->to($student->email)
-                    ->subject('Verify your Student Account');
-        });
-    } catch (\Exception $e) {
-        \Log::error('Mail sending failed: '.$e->getMessage());
+    public function storeAjax(Request $request)
+    {
+        if (!$request->isMethod('post')) {
+        return redirect()->route('students.index');
     }
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Student added! Verification email sent.',
-        'student' => $student
-    ]);
-}
+        $request->validate([
+            'name'  => 'required',
+            'email' => 'required|email|unique:students,email',
+        ]);
 
-    // Verify student
+        $student = Student::create([
+        'name' => $request->name,
+        'email' => $request->email,
+        'is_verified' => 0,
+        'verification_token' => Str::random(40),
+    ]);
+        try {
+            $verificationLink = route('students.verify', ['token' => $student->verification_token]);
+            Mail::raw("Hi {$student->name}, click here to verify: $verificationLink", function ($message) use ($student) {
+                $message->to($student->email)
+                        ->subject('Verify your Student Account');
+            });
+        } catch (\Exception $e) {
+            \Log::error('Mail sending failed: '.$e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Student added! Verification email sent.',
+            'student' => $student
+        ]);
+    }
+
     public function verify($token)
     {
         $student = Student::where('verification_token', $token)->first();
@@ -81,3 +78,5 @@ public function storeAjax(Request $request)
         return redirect()->route('students.index')->with('success', 'Email verified successfully!');
     }
 }
+
+
